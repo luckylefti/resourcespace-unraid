@@ -1,0 +1,6 @@
+#!/bin/sh
+# Upstream ruft nur cron_copy_hitcount.php auf. batch/cron.php erledigt die
+# übrigen Wartungsaufgaben (Ablaufbenachrichtigungen, Aufräumen, Berichte) und
+# läuft sonst nirgends.
+su -s /bin/sh -c 'cd /var/www/html/pages/tools && nice -n 19 ionice -c2 -n7 php cron_copy_hitcount.php' www-data
+su -s /bin/sh -c 'cd /var/www/html/batch && nice -n 19 ionice -c2 -n7 php cron.php' www-data

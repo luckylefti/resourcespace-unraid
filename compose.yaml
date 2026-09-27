@@ -1,0 +1,60 @@
+# ResourceSpace auf Unraid.
+# Grundlage: github.com/resourcespace/docker (Stand 07dbaff), angepasst an Unraid:
+#  - Port 80 gehört auf Unraid der Weboberfläche des Servers, daher RS_PORT.
+#  - Daten als Bind-Mounts unter appdata statt benannter Volumes, damit die
+#    übliche Appdata-Sicherung sie erfasst.
+#  - MariaDB auf eine feste Hauptversion gepinnt; "latest" würde beim nächsten
+#    Pull still ein Major-Upgrade der Datenbank auslösen.
+#  - Eigene Containernamen; ein Container namens "mariadb" kollidiert leicht
+#    mit anderen Stacks auf demselben Server.
+
+services:
+  resourcespace:
+    build: .
+    image: resourcespace-lokal:11.0
+    container_name: resourcespace
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${RS_APPDATA:-/mnt/user/appdata/resourcespace}/filestore
+        target: /var/www/html/filestore
+      # Einzeldatei-Mount: existiert die Quelle nicht, legt Docker dort ein
+      # Verzeichnis an und die Einrichtung scheitert. einrichten.sh legt sie an.
+      - type: bind
+        source: ${RS_APPDATA:-/mnt/user/appdata/resourcespace}/config/config.php
+        target: /var/www/html/include/config.php
+    ports:
+      - "${RS_PORT:-8088}:80"
+    networks:
+      - frontend
+      - backend
+
+  # Der Dienstname bleibt "mariadb": genau das trägt man auf der Einrichtungsseite
+  # als Datenbank-Server ein.
+  mariadb:
+    image: mariadb:11.4
+    container_name: resourcespace-mariadb
+    restart: unless-stopped
+    env_file:
+      - db.env
+    environment:
+      TZ: Europe/Berlin
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - type: bind
+        source: ${RS_APPDATA:-/mnt/user/appdata/resourcespace}/mariadb
+        target: /var/lib/mysql
+    networks:
+      - backend
+
+networks:
+  frontend:
+  backend:
